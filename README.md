@@ -1,48 +1,29 @@
-# Fila de Atendimento
+# Fila de Atendimento — MVP
 
-> Status: concepção. Este repositório contém apenas o escopo inicial; ainda não há aplicação executável ou funcionalidades implementadas.
+Sistema local em **Go 1.22**, sem dependências externas, para emissão e chamada de senhas em ordem de chegada.
 
-## Ideia
+## Funcionalidades implementadas
+- Emitir senhas sequenciais.
+- Chamar a próxima senha aguardando em um guichê.
+- Impedir que o mesmo guichê abra duas chamadas e que uma senha seja chamada por dois guichês.
+- Encerrar como **atendida** ou **ausente**.
+- Consultar fila e estados numa interface HTML local, acessível via navegador.
 
-Controlar senhas e chamadas de pequenos balcões de atendimento.
+## Executar
+```bash
+go run .
+```
+Abra http://127.0.0.1:8080
 
-## Primeira versão planejada
+## Testes
+```bash
+go test -race ./...
+go vet ./...
+```
+O GitHub Actions executa testes e verificações em PRs e pushes.
 
-- [ ] Emitir senha sequencial.
-- [ ] Chamar a próxima senha.
-- [ ] Finalizar ou registrar ausência.
+## Limites do MVP
+Os dados são mantidos **em memória** e desaparecem ao reiniciar. A primeira entrega utiliza Go + HTML padrão; **SQLite e HTMX** seguem como evolução, assim como autenticação, recuperação de senhas e relatórios. O servidor escuta somente `127.0.0.1`; não exponha esta aplicação diretamente à internet.
 
-## Modelo inicial
-
-Senha, fila e chamada.
-
-## Regras e limites
-
-Uma senha não pode ser chamada em dois guichês simultaneamente; primeira versão usa fila única por ordem de chegada.
-
-Escopo mantido pequeno: sem pagamentos, integrações externas, infraestrutura de produção ou uso de dados pessoais reais nesta etapa.
-
-## Tecnologia proposta
-
-Go + HTMX + SQLite.
-
-A escolha é uma proposta para a futura implementação; nenhuma dependência foi instalada e a tecnologia ainda não foi implementada.
-
-## Critério de conclusão do primeiro incremento
-
-Duas chamadas consecutivas devem selecionar senhas distintas na ordem correta.
-
-## Próximos passos
-
-1. Revisar este escopo antes de começar a implementação.
-2. Preparar o ambiente mínimo da tecnologia escolhida.
-3. Implementar um fluxo completo e validar o critério acima.
-4. Documentar a execução e acrescentar exemplos demonstrativos.
-
-## Possíveis evoluções
-
-Depois de validar o fluxo principal, avaliar persistência, acessibilidade e uma interface mais completa conforme a plataforma. Evoluções não fazem parte da entrega atual.
-
-## Como executar
-
-Ainda não há comandos de execução. Eles serão adicionados quando existir uma primeira versão funcional.
+## Critério de aceite
+Emitir duas senhas e chamar em dois guichês distintos deve respeitar a ordem de chegada, sem duplicar o atendimento.
