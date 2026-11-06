@@ -21,3 +21,24 @@ func TestHTTPFlow(t *testing.T){
  req=httptest.NewRequest(http.MethodGet,"/",nil);w=httptest.NewRecorder();h.ServeHTTP(w,req)
  if !strings.Contains(w.Body.String(),"chamada"){t.Fatal("senha não aparece na interface")}
 }
+
+
+func TestRejectCrossOriginPosts(t *testing.T) {
+ q:=&Queue{}
+ h:=app(q)
+ for _,tc:=range []struct{name, origin, fetchSite string; want int}{
+  {"outro site","https://malicioso.example","cross-site",http.StatusForbidden},
+  {"outro site sem fetch metadata","http://malicioso.example","",http.StatusForbidden},
+  {"navegador local","http://example.com","same-origin",http.StatusSeeOther},
+  {"sem origin header","","",http.StatusSeeOther},
+ } {
+  t.Run(tc.name,func(t *testing.T){
+   req:=httptest.NewRequest(http.MethodPost,"http://example.com/emitir",nil)
+   if tc.origin!="" {req.Header.Set("Origin",tc.origin)}
+   if tc.fetchSite!="" {req.Header.Set("Sec-Fetch-Site",tc.fetchSite)}
+   w:=httptest.NewRecorder();h.ServeHTTP(w,req)
+   if w.Code!=tc.want {t.Fatalf("resposta %d, esperada %d",w.Code,tc.want)}
+  })
+ }
+ if len(q.List())!=2 {t.Fatalf("somente formulários permitidos devem emitir senha: %+v",q.List())}
+}
