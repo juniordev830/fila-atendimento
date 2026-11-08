@@ -103,3 +103,10 @@ curl -H 'Authorization: Bearer troque-por-um-segredo-longo' http://127.0.0.1:808
 Com token configurado, todas as rotas exceto `GET /health` exigem o cabecalho `Authorization: Bearer <token>`. Credenciais incorretas recebem HTTP 401 e `WWW-Authenticate: Bearer`. O token nao aparece em logs nem respostas. A comparacao utiliza `crypto/subtle`.
 
 **Aviso:** bearer token em HTTP sem TLS pode ser interceptado. Para exposicao fora do host, utilize HTTPS em um proxy reverso confiavel, controle de acesso e protecao do segredo. O token nao substitui TLS, limites de requisicoes ou auditoria de operacoes.
+
+
+## Checkpoints locais (biblioteca Go)
+
+A fila disponibiliza `q.SaveSnapshotFile("queue.json")` e `LoadSnapshotFile("queue.json")` para backup e recuperacao explicitos. O arquivo e criado com permissoes `0600`, escrito em arquivo temporario, sincronizado e substituido por renomeacao atomica. O carregamento limita a leitura a 5 MiB e valida os invariantes antes de devolver uma fila utilizavel.
+
+**Importante:** checkpoints sao manuais e nao sao executados automaticamente apos cada requisicao. Falhas do processo entre checkpoints podem causar perda de alteracoes recentes. O formato nao oferece coordenacao entre multiplos processos nem historico transacional; para producao, integrar persistencia transacional e autenticacao robusta.
