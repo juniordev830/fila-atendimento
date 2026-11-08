@@ -322,5 +322,6 @@ func withAdvancedRoutes(q *Queue, mux *http.ServeMux) http.Handler {
         w.WriteHeader(http.StatusOK)
         _, _ = w.Write(data)
     })
+    registerReportRoutes(q, mux)
     return mux
 }
