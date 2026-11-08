@@ -167,7 +167,6 @@ func newHandler(q *Queue) http.Handler {
 func main() {
 	addr := os.Getenv("ADDR")
 	if addr == "" { addr = "127.0.0.1:8080" }
-	fmt.Printf("Fila de Atendimento em http://%s
-", addr)
+	fmt.Printf("Fila de Atendimento em http://%s\n", addr)
 	log.Fatal(http.ListenAndServe(addr, newHandler(NewQueue())))
 }
