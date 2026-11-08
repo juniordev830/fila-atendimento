@@ -161,7 +161,7 @@ func newHandler(q *Queue) http.Handler {
 		}
 		respond(w, http.StatusOK, ticket)
 	})
-	return mux
+	return withAdvancedRoutes(q, mux)
 }
 
 func main() {
