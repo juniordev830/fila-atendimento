@@ -89,3 +89,17 @@ O metodo Go `RestoreQueue([]byte)` restaura um snapshot validado (versao 1), pre
 - Para multiplas instancias, persistencia transacional e coordenacao distribuida ainda sao necessarias.
 
 Os testes cobrem transicoes de estado, concorrencia com detector de race, snapshots corrompidos, paginacao, HTTP e isolamento de guiches.
+
+
+## Autenticacao opcional e exposicao de rede
+
+Por padrao, a API continua sem autenticacao **somente em loopback**. Ao configurar `ADDR` com um endereco publico ou de rede, o processo exige `API_TOKEN` antes de iniciar:
+
+```bash
+API_TOKEN='troque-por-um-segredo-longo' ADDR=0.0.0.0:8080 go run .
+curl -H 'Authorization: Bearer troque-por-um-segredo-longo' http://127.0.0.1:8080/stats
+```
+
+Com token configurado, todas as rotas exceto `GET /health` exigem o cabecalho `Authorization: Bearer <token>`. Credenciais incorretas recebem HTTP 401 e `WWW-Authenticate: Bearer`. O token nao aparece em logs nem respostas. A comparacao utiliza `crypto/subtle`.
+
+**Aviso:** bearer token em HTTP sem TLS pode ser interceptado. Para exposicao fora do host, utilize HTTPS em um proxy reverso confiavel, controle de acesso e protecao do segredo. O token nao substitui TLS, limites de requisicoes ou auditoria de operacoes.
