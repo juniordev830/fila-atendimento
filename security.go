@@ -38,7 +38,9 @@ func secureHandler(q *Queue, token string) http.Handler {
             return
         }
         w.Header().Set("Cache-Control", "no-store")
-        if subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")), expected) != 1 {
+        values := r.Header.Values("Authorization")
+        // Reject repeated credentials: intermediaries may interpret them differently.
+        if len(values) != 1 || subtle.ConstantTimeCompare([]byte(values[0]), expected) != 1 {
             w.Header().Set("WWW-Authenticate", "Bearer")
             respond(w, http.StatusUnauthorized, map[string]string{"erro": "credencial obrigatoria"})
             return
