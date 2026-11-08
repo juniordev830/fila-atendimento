@@ -1,48 +1,45 @@
 # Fila de Atendimento
 
-> Status: concepção. Este repositório contém apenas o escopo inicial; ainda não há aplicação executável ou funcionalidades implementadas.
+MVP de senhas para pequenos balcoes de atendimento, implementado em **Go 1.23**, apenas com a biblioteca padrao.
 
-## Ideia
+## Funcionalidades
 
-Controlar senhas e chamadas de pequenos balcões de atendimento.
+- Emite senhas sequenciais por ordem de chegada.
+- Chama a primeira senha em espera para um guiche informado.
+- Nao permite que uma senha seja atendida em dois guiches, nem que o mesmo guiche abra dois atendimentos simultaneos.
+- Finaliza o atendimento ou registra ausencia, com historico consultavel em memoria.
+- API HTTP JSON, validacao de metodos e testes concorrentes.
 
-## Primeira versão planejada
+## Executar
 
-- [ ] Emitir senha sequencial.
-- [ ] Chamar a próxima senha.
-- [ ] Finalizar ou registrar ausência.
+```bash
+go run .
+```
 
-## Modelo inicial
+O servidor fica em `http://127.0.0.1:8080` por padrao. Configure `ADDR` para alterar a escuta, por exemplo `ADDR=127.0.0.1:9090 go run .`.
 
-Senha, fila e chamada.
+```bash
+curl -X POST http://127.0.0.1:8080/tickets
+curl -X POST http://127.0.0.1:8080/tickets
+curl -X POST http://127.0.0.1:8080/call   -H 'Content-Type: application/json' -d '{"desk":"guiche-1"}'
+curl -X POST http://127.0.0.1:8080/resolve   -H 'Content-Type: application/json' -d '{"id":1,"status":"completed"}'
+curl http://127.0.0.1:8080/tickets
+```
 
-## Regras e limites
+Em `/resolve`, status permitido: `completed` ou `absent`. Chamadas invalidas retornam 400, e conflitos de estado retornam 409.
 
-Uma senha não pode ser chamada em dois guichês simultaneamente; primeira versão usa fila única por ordem de chegada.
+## Validacao
 
-Escopo mantido pequeno: sem pagamentos, integrações externas, infraestrutura de produção ou uso de dados pessoais reais nesta etapa.
+```bash
+go test -race ./...
+go vet ./...
+```
 
-## Tecnologia proposta
+O workflow CI executa os dois comandos em PRs. A verificacao de concorrencia usa mutex no mesmo processo.
 
-Go + HTMX + SQLite.
+## Limites
 
-A escolha é uma proposta para a futura implementação; nenhuma dependência foi instalada e a tecnologia ainda não foi implementada.
-
-## Critério de conclusão do primeiro incremento
-
-Duas chamadas consecutivas devem selecionar senhas distintas na ordem correta.
-
-## Próximos passos
-
-1. Revisar este escopo antes de começar a implementação.
-2. Preparar o ambiente mínimo da tecnologia escolhida.
-3. Implementar um fluxo completo e validar o critério acima.
-4. Documentar a execução e acrescentar exemplos demonstrativos.
-
-## Possíveis evoluções
-
-Depois de validar o fluxo principal, avaliar persistência, acessibilidade e uma interface mais completa conforme a plataforma. Evoluções não fazem parte da entrega atual.
-
-## Como executar
-
-Ainda não há comandos de execução. Eles serão adicionados quando existir uma primeira versão funcional.
+- **Armazenamento somente em memoria**: reiniciar perde as senhas; persistencia SQLite e recuperacao apos falhas estao no backlog.
+- **Sem login nem autenticacao**: API deve permanecer local, nunca publica na internet sem autorizacao e protecoes apropriadas.
+- Nao ha garantia de exclusao mutua entre *multiplos processos*. Usar um processo unico nesta primeira versao.
+- Ainda nao possui HTMX, frontend ou painel de atendimento.
