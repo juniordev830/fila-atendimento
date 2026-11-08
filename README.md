@@ -40,7 +40,7 @@ O workflow CI executa os dois comandos em PRs. A verificacao de concorrencia usa
 ## Limites
 
 - **Armazenamento somente em memoria**: reiniciar perde as senhas; persistencia SQLite e recuperacao apos falhas estao no backlog.
-- **Sem login nem autenticacao**: API deve permanecer local, nunca publica na internet sem autorizacao e protecoes apropriadas.
+- **Autenticacao opcional**: sem API_TOKEN, o servidor so pode escutar em loopback; com token, todas as rotas exceto GET /health exigem Bearer. Para acesso externo, usar TLS e protecoes adicionais.
 - Nao ha garantia de exclusao mutua entre *multiplos processos*. Usar um processo unico nesta primeira versao.
 - Ainda nao possui HTMX, frontend ou painel de atendimento.
 
@@ -85,7 +85,7 @@ O metodo Go `RestoreQueue([]byte)` restaura um snapshot validado (versao 1), pre
 - Transferencias, cancelamentos e devolucoes usam a mesma exclusao mutua da fila.
 - Identificadores de senhas nunca sao reutilizados; a paginacao e limitada a 100 registros.
 - Snapshot rejeita IDs fora de ordem, estados invalidos, guiches ativos duplicados, campos inesperados e arquivos acima de 5 MiB.
-- Endpoints de escrita **nao possuem autenticacao**. Mantenha o servidor vinculado a `127.0.0.1` ou use uma camada de autenticacao antes de qualquer exposicao externa.
+- Endpoints de escrita exigem Bearer quando API_TOKEN estiver configurado; sem token, o servidor so aceita escuta em loopback.
 - Para multiplas instancias, persistencia transacional e coordenacao distribuida ainda sao necessarias.
 
 Os testes cobrem transicoes de estado, concorrencia com detector de race, snapshots corrompidos, paginacao, HTTP e isolamento de guiches.
@@ -110,3 +110,27 @@ Com token configurado, todas as rotas exceto `GET /health` exigem o cabecalho `A
 A fila disponibiliza `q.SaveSnapshotFile("queue.json")` e `LoadSnapshotFile("queue.json")` para backup e recuperacao explicitos. O arquivo e criado com permissoes `0600`, escrito em arquivo temporario, sincronizado e substituido por renomeacao atomica. O carregamento limita a leitura a 5 MiB e valida os invariantes antes de devolver uma fila utilizavel.
 
 **Importante:** checkpoints sao manuais e nao sao executados automaticamente apos cada requisicao. Falhas do processo entre checkpoints podem causar perda de alteracoes recentes. O formato nao oferece coordenacao entre multiplos processos nem historico transacional; para producao, integrar persistencia transacional e autenticacao robusta.
+
+## Relatorios operacionais (HTTP)
+
+Os relatorios analisam o **estado atual** das senhas, sem coletar dados pessoais ou inventar duracoes de atendimento. O mesmo mecanismo de Bearer protege todas as rotas quando `API_TOKEN` esta configurado.
+
+```bash
+# Resumo de status e taxa de conclusao, por intervalo de IDs
+curl 'http://127.0.0.1:8080/reports/summary?from_id=1&to_id=100'
+
+# Volume por guiche, com paginacao ordenada
+curl 'http://127.0.0.1:8080/reports/desks?offset=0&limit=20'
+
+# Exportacao CSV para planilhas, sem formulas executaveis
+curl 'http://127.0.0.1:8080/reports/export.csv?from_id=1&to_id=100' -o fila.csv
+```
+
+- `from_id` e `to_id` sao opcionais, inclusivos e devem ser inteiros positivos com `from_id <= to_id`.
+- `/reports/desks` aceita `offset >= 0` e `1 <= limit <= 100`; os demais relatorios rejeitam parametros desconhecidos.
+- No maximo **10.000 senhas** podem ser processadas em cada relatorio. Uma solicitacao maior retorna HTTP 422.
+- O resumo calcula `completion_percent = completed / (completed + absent) * 100`. Senhas aguardando, em atendimento ou canceladas nao entram no denominador.
+- O relatorio por guiche conta apenas senhas `called`, `completed` e `absent`, agrupadas pelo ultimo guiche registrado. Nao representa uma trilha historica de transferencias.
+- O CSV usa `encoding/csv` e protege identificadores de guiche iniciados por caracteres de formula para evitar execucao acidental em planilhas.
+- As leituras fazem copia consistente sob mutex e executam agregacoes fora da regiao critica; nao bloqueiam a fila durante a serializacao CSV.
+- Os resultados sao efemeros: o reinicio do processo perde o estado que nao tiver sido salvo em checkpoint. Nao ha indicadores de tempo medio ou SLA sem timestamps confiaveis.
