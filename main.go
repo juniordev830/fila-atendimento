@@ -168,5 +168,7 @@ func main() {
 	addr := os.Getenv("ADDR")
 	if addr == "" { addr = "127.0.0.1:8080" }
 	fmt.Printf("Fila de Atendimento em http://%s\n", addr)
-	log.Fatal(http.ListenAndServe(addr, newHandler(NewQueue())))
+	token := os.Getenv("API_TOKEN")
+	if err := validateBindAddress(addr, token); err != nil { log.Fatal(err) }
+	log.Fatal(http.ListenAndServe(addr, secureHandler(NewQueue(), token)))
 }
