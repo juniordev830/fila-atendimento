@@ -71,6 +71,35 @@ func TestTokenAuthenticationProtectsReadsAndMutations(t *testing.T) {
     }
 }
 
+func TestTokenAuthenticationRejectsDuplicateAuthorizationHeaders(t *testing.T) {
+    handler := secureHandler(NewQueue(), "very-secret")
+    cases := [][]string{
+        {"Bearer very-secret", "Bearer very-secret"},
+        {"Bearer very-secret", "Bearer wrong"},
+        {"Bearer wrong", "Bearer very-secret"},
+    }
+
+    for _, headers := range cases {
+        req := httptest.NewRequest(http.MethodGet, "/stats", nil)
+        for _, header := range headers {
+            req.Header.Add("Authorization", header)
+        }
+
+        response := httptest.NewRecorder()
+        handler.ServeHTTP(response, req)
+
+        if response.Code != http.StatusUnauthorized {
+            t.Errorf("duplicate headers should return 401; got %d", response.Code)
+        }
+        if response.Header().Get("WWW-Authenticate") != "Bearer" {
+            t.Error("missing Bearer challenge for duplicate credentials")
+        }
+        if strings.Contains(response.Body.String(), "very-secret") {
+            t.Error("credential leaked in rejection response")
+        }
+    }
+}
+
 func TestLocalDevelopmentRemainsBackwardsCompatible(t *testing.T) {
     handler := secureHandler(NewQueue(), "")
     req := httptest.NewRequest(http.MethodPost, "/tickets", nil)
