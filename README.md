@@ -43,3 +43,49 @@ O workflow CI executa os dois comandos em PRs. A verificacao de concorrencia usa
 - **Sem login nem autenticacao**: API deve permanecer local, nunca publica na internet sem autorizacao e protecoes apropriadas.
 - Nao ha garantia de exclusao mutua entre *multiplos processos*. Usar um processo unico nesta primeira versao.
 - Ainda nao possui HTMX, frontend ou painel de atendimento.
+
+
+## Operacoes avancadas
+
+A API oferece cancelamento de senhas ainda nao chamadas, devolucao de uma senha chamada para a fila, transferencia atomica entre guiches, posicao na fila, indicadores e paginacao com limite de 100 itens.
+
+```bash
+# Consultar estatisticas e guiches ativos
+curl http://127.0.0.1:8080/stats
+
+# Filtrar senhas e limitar o volume de resposta
+curl 'http://127.0.0.1:8080/tickets/search?status=waiting&offset=0&limit=20'
+
+# Consultar posicao de uma senha ainda aguardando
+curl 'http://127.0.0.1:8080/tickets/position?id=2'
+
+# Cancelar uma senha em espera
+curl -X POST http://127.0.0.1:8080/cancel \
+  -H 'Content-Type: application/json' -d '{"id":2}'
+
+# Transferir atendimento ativo de um guiche a outro, se livre
+curl -X POST http://127.0.0.1:8080/transfer \
+  -H 'Content-Type: application/json' \
+  -d '{"id":1,"source":"guiche-1","destination":"guiche-2"}'
+
+# Devolver senha chamada para a fila, liberando o guiche
+curl -X POST http://127.0.0.1:8080/requeue \
+  -H 'Content-Type: application/json' -d '{"id":1}'
+
+# Exportar snapshot versionado (nao inclui dados pessoais)
+curl http://127.0.0.1:8080/export > backup.json
+```
+
+O metodo Go `RestoreQueue([]byte)` restaura um snapshot validado (versao 1), preservando a sequencia de senhas e impedindo guiches ativos duplicados. A importacao nao e disponibilizada por HTTP: ela deve ser integrada apenas a um procedimento administrativo controlado. O snapshot **nao e persistido automaticamente**; a memoria do processo continua sendo a fonte de verdade.
+
+### Invariantes e seguranca
+
+- Um guiche nao pode atender duas senhas simultaneamente.
+- Senhas concluidas, ausentes ou canceladas nao podem ser chamadas novamente.
+- Transferencias, cancelamentos e devolucoes usam a mesma exclusao mutua da fila.
+- Identificadores de senhas nunca sao reutilizados; a paginacao e limitada a 100 registros.
+- Snapshot rejeita IDs fora de ordem, estados invalidos, guiches ativos duplicados, campos inesperados e arquivos acima de 5 MiB.
+- Endpoints de escrita **nao possuem autenticacao**. Mantenha o servidor vinculado a `127.0.0.1` ou use uma camada de autenticacao antes de qualquer exposicao externa.
+- Para multiplas instancias, persistencia transacional e coordenacao distribuida ainda sao necessarias.
+
+Os testes cobrem transicoes de estado, concorrencia com detector de race, snapshots corrompidos, paginacao, HTTP e isolamento de guiches.
