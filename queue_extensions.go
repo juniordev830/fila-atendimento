@@ -323,5 +323,6 @@ func withAdvancedRoutes(q *Queue, mux *http.ServeMux) http.Handler {
         _, _ = w.Write(data)
     })
     registerReportRoutes(q, mux)
+    registerBatchRoutes(q, mux)
     return mux
 }
