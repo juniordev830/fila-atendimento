@@ -134,3 +134,41 @@ curl 'http://127.0.0.1:8080/reports/export.csv?from_id=1&to_id=100' -o fila.csv
 - O CSV usa `encoding/csv` e protege identificadores de guiche iniciados por caracteres de formula para evitar execucao acidental em planilhas.
 - As leituras fazem copia consistente sob mutex e executam agregacoes fora da regiao critica; nao bloqueiam a fila durante a serializacao CSV.
 - Os resultados sao efemeros: o reinicio do processo perde o estado que nao tiver sido salvo em checkpoint. Nao ha indicadores de tempo medio ou SLA sem timestamps confiaveis.
+
+
+## Transacoes atomicas de senhas
+
+A rota `POST /tickets/batch` aceita **1 a 100 operacoes dependentes**, aplicadas
+sob o mesmo mutex. Se qualquer operacao falhar, **nenhuma mudanca e publicada**:
+nem mesmo os IDs emitidos nas etapas anteriores do lote sao consumidos.
+
+```bash
+curl -X POST http://127.0.0.1:8080/tickets/batch \
+  -H 'Content-Type: application/json' \
+  -d '{"actions":[{"op":"issue"},{"op":"call","desk":"A"},{"op":"resolve","id":1,"status":"completed"}]}'
+```
+
+O campo opcional `"dry_run": true` simula exatamente as mesmas transicoes sem
+alterar o estado da fila. A resposta apresenta `applied`, `tickets` (estado
+apos cada operacao), `next_id` e `counts`. Em caso de erro, `operacao N`
+indica a primeira etapa que falhou. Conflitos de estado retornam HTTP 409;
+campos/operacoes invalidos retornam HTTP 400.
+
+| Operacao | Campos obrigatorios | Condicao |
+| --- | --- | --- |
+| `issue` | `op` | Emite uma nova senha |
+| `call` | `desk` | Guiche livre e senha aguardando |
+| `resolve` | `id`, `status` | Senha chamada; `completed` ou `absent` |
+| `cancel` | `id` | Senha ainda aguardando |
+| `requeue` | `id` | Senha em atendimento |
+| `transfer` | `id`, `source`, `destination` | Guiche de origem correto e destino livre |
+
+Campos nao utilizados sao rejeitados, assim como propriedades JSON desconhecidas,
+guiches vazios, nomes de guiche acima de 64 caracteres Unicode e controles.
+O corpo HTTP e limitado a 32 KiB. A autenticacao Bearer existente tambem
+protege a rota, exceto em modo local sem token.
+
+**Limites:** a transacao e atomica apenas na memoria de um processo. Nao
+implementa idempotencia entre requisicoes, historico de eventos, persistencia
+transacional nem coordenacao entre instancias. O modo de simulacao nao reserva
+recursos: outra requisicao pode mudar a fila antes de um commit posterior.
