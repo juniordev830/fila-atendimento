@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -92,7 +93,16 @@ func (q *Queue) Snapshot() []Ticket {
 
 func readObject(r *http.Request, out any) error {
 	defer r.Body.Close()
-	dec := json.NewDecoder(io.LimitReader(r.Body, 2049))
+	// Read one byte beyond the limit to distinguish oversized JSON from EOF.
+	// A capped decoder alone may mistake truncated trailing content for EOF.
+	body, err := io.ReadAll(io.LimitReader(r.Body, 2049))
+	if err != nil {
+		return err
+	}
+	if len(body) > 2048 {
+		return errors.New("JSON excede 2048 bytes")
+	}
+	dec := json.NewDecoder(bytes.NewReader(body))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(out); err != nil {
 		return err
