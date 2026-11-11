@@ -26,7 +26,9 @@ curl -X POST http://127.0.0.1:8080/resolve   -H 'Content-Type: application/json'
 curl http://127.0.0.1:8080/tickets
 ```
 
-Em `/resolve`, status permitido: `completed` ou `absent`. Chamadas invalidas retornam 400, e conflitos de estado retornam 409. Objetos JSON de entrada são limitados a **2.048 bytes**, com rejeição explícita de qualquer conteúdo excedente (incluindo espaços após o objeto); requisições recusadas não modificam a fila.
+Em `/resolve`, status permitido: `completed` ou `absent`. Chamadas invalidas retornam 400, e conflitos de estado retornam 409.
+
+Nomes de guichê em `/call` e `/transfer` são normalizados (espaços nas extremidades removidos) e devem conter **1 a 64 caracteres Unicode, sem caracteres de controle**. A validação é a mesma das operações em lote: nomes inválidos retornam HTTP 400 sem chamar ou transferir senhas. Conflitos legítimos de ocupação continuam retornando 409. Objetos JSON de entrada são limitados a **2.048 bytes**, com rejeição explícita de qualquer conteúdo excedente (incluindo espaços após o objeto); requisições recusadas não modificam a fila.
 
 ## Validacao
 
@@ -84,7 +86,7 @@ O metodo Go `RestoreQueue([]byte)` restaura um snapshot validado (versao 1), pre
 - Senhas concluidas, ausentes ou canceladas nao podem ser chamadas novamente.
 - Transferencias, cancelamentos e devolucoes usam a mesma exclusao mutua da fila.
 - Identificadores de senhas nunca sao reutilizados; a paginacao e limitada a 100 registros.
-- Snapshot rejeita IDs fora de ordem, estados invalidos, guiches ativos duplicados, campos inesperados e arquivos acima de 5 MiB.
+- Snapshot rejeita IDs fora de ordem, estados invalidos, guiches ativos duplicados, guichês fora do limite de caracteres, campos inesperados e arquivos acima de 5 MiB. Senhas aguardando ou canceladas não podem ocupar guichês; atendimentos chamados e concluídos precisam ter guichê válido.
 - Endpoints de escrita exigem Bearer quando API_TOKEN estiver configurado; sem token, o servidor so aceita escuta em loopback.
 - Para multiplas instancias, persistencia transacional e coordenacao distribuida ainda sao necessarias.
 
