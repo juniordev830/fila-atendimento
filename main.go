@@ -38,6 +38,7 @@ func (q *Queue) Issue() Ticket {
 
 var (
 	ErrNoWaiting  = errors.New("nenhuma senha aguardando")
+	ErrInvalidDesk = errors.New("guiche invalido: use ate 64 caracteres sem controles")
 	ErrDeskBusy   = errors.New("guiche ja possui atendimento ativo")
 	ErrNotCalled  = errors.New("senha nao esta em atendimento")
 	ErrBadOutcome = errors.New("resultado deve ser completed ou absent")
@@ -45,8 +46,8 @@ var (
 
 func (q *Queue) Call(desk string) (Ticket, error) {
 	desk = strings.TrimSpace(desk)
-	if desk == "" {
-		return Ticket{}, errors.New("guiche obrigatorio")
+	if !validDeskName(desk) {
+		return Ticket{}, ErrInvalidDesk
 	}
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -149,7 +150,7 @@ func newHandler(q *Queue) http.Handler {
 		ticket, err := q.Call(input.Desk)
 		if err != nil {
 			code := http.StatusConflict
-			if strings.TrimSpace(input.Desk) == "" { code = http.StatusBadRequest }
+			if errors.Is(err, ErrInvalidDesk) { code = http.StatusBadRequest }
 			respond(w, code, map[string]string{"erro": err.Error()}); return
 		}
 		respond(w, http.StatusOK, ticket)
