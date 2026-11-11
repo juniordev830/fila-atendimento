@@ -66,8 +66,8 @@ func (q *Queue) Requeue(id int) (Ticket, error) {
 // Transfer changes the desk of an active ticket atomically.
 func (q *Queue) Transfer(id int, source, destination string) (Ticket, error) {
     source, destination = strings.TrimSpace(source), strings.TrimSpace(destination)
-    if source == "" || destination == "" {
-        return Ticket{}, errors.New("guiches obrigatorios")
+    if !validDeskName(source) || !validDeskName(destination) {
+        return Ticket{}, ErrInvalidDesk
     }
     if source == destination {
         return Ticket{}, ErrSameDesk
@@ -202,13 +202,18 @@ func RestoreQueue(data []byte) (*Queue, error) {
         if ticket.ID <= previousID || ticket.ID >= envelope.NextID || !validStatus(ticket.Status) {
             return nil, errors.New("ordem, identificador ou status de senha invalido")
         }
-        if ticket.Status == "called" {
-            if strings.TrimSpace(ticket.Desk) == "" || activeDesks[ticket.Desk] {
-                return nil, errors.New("guiche ativo invalido ou duplicado")
+        if ticket.Status == "called" || ticket.Status == "completed" || ticket.Status == "absent" {
+            if !validDeskName(ticket.Desk) || strings.TrimSpace(ticket.Desk) != ticket.Desk {
+                return nil, errors.New("guiche do snapshot invalido")
             }
-            activeDesks[ticket.Desk] = true
-        } else if ticket.Desk != "" && ticket.Status == "waiting" {
-            return nil, errors.New("senha aguardando nao pode ocupar guiche")
+            if ticket.Status == "called" {
+                if activeDesks[ticket.Desk] {
+                    return nil, errors.New("guiche ativo duplicado")
+                }
+                activeDesks[ticket.Desk] = true
+            }
+        } else if ticket.Desk != "" {
+            return nil, errors.New("senha sem atendimento nao pode ocupar guiche")
         }
         previousID = ticket.ID
     }
@@ -307,7 +312,9 @@ func withAdvancedRoutes(q *Queue, mux *http.ServeMux) http.Handler {
         }
         ticket, err := q.Transfer(input.ID, input.Source, input.Destination)
         if err != nil {
-            respond(w, http.StatusConflict, map[string]string{"erro": err.Error()}); return
+            code := http.StatusConflict
+            if errors.Is(err, ErrInvalidDesk) { code = http.StatusBadRequest }
+            respond(w, code, map[string]string{"erro": err.Error()}); return
         }
         respond(w, http.StatusOK, ticket)
     })

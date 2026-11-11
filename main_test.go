@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sync"
+	"strings"
 	"testing"
 )
 
@@ -73,4 +74,53 @@ func TestHTTPAPI(t *testing.T) {
 	request(t, h, "POST", "/call", `{"desk":"A","admin":true}`, http.StatusBadRequest)
 	request(t, h, "GET", "/health", "", http.StatusOK)
 	request(t, h, "PUT", "/tickets", "", http.StatusMethodNotAllowed)
+}
+
+func TestOversizedJSONCannotMutateQueue(t *testing.T) {
+	q := NewQueue()
+	issued := q.Issue()
+	h := newHandler(q)
+	// The legacy capped decoder could accept a small JSON object plus
+	// extra trailing spaces because the reader returned a synthetic EOF.
+	large := `{"desk":"A"}` + strings.Repeat(" ", 2100)
+	request(t, h, "POST", "/call", large, http.StatusBadRequest)
+	items := q.Snapshot()
+	if len(items) != 1 || items[0].ID != issued.ID || items[0].Status != "waiting" {
+		t.Fatalf("oversized request modified queue: %+v", items)
+	}
+
+	// An in-bound request still works and a second object is rejected.
+	request(t, h, "POST", "/call", `{"desk":"A"}`, http.StatusOK)
+	request(t, h, "POST", "/resolve",
+		`{"id":1,"status":"completed"} {"id":1,"status":"absent"}`,
+		http.StatusBadRequest)
+}
+
+func TestJSONBodyLimitAtExactBoundary(t *testing.T) {
+    const maxBytes = 2048
+    payload := `{"desk":"B"}`
+    exactlyAllowed := payload + strings.Repeat(" ", maxBytes-len(payload))
+    if len(exactlyAllowed) != maxBytes {
+        t.Fatal("invalid boundary fixture")
+    }
+
+    allowed := NewQueue()
+    allowed.Issue()
+    request(t, newHandler(allowed), "POST", "/call", exactlyAllowed, http.StatusOK)
+    called := allowed.Snapshot()
+    if len(called) != 1 || called[0].Status != "called" || called[0].Desk != "B" {
+        t.Fatalf("exactly 2048 bytes should be accepted: %+v", called)
+    }
+
+    rejected := NewQueue()
+    rejected.Issue()
+    justTooLarge := exactlyAllowed + " "
+    if len(justTooLarge) != maxBytes+1 {
+        t.Fatal("invalid overflow fixture")
+    }
+    request(t, newHandler(rejected), "POST", "/call", justTooLarge, http.StatusBadRequest)
+    after := rejected.Snapshot()
+    if len(after) != 1 || after[0].Status != "waiting" || after[0].Desk != "" {
+        t.Fatalf("oversized request must not mutate queue: %+v", after)
+    }
 }
