@@ -26,7 +26,7 @@ curl -X POST http://127.0.0.1:8080/resolve   -H 'Content-Type: application/json'
 curl http://127.0.0.1:8080/tickets
 ```
 
-Em `/resolve`, status permitido: `completed` ou `absent`. Chamadas invalidas retornam 400, e conflitos de estado retornam 409.
+Em `/resolve`, status permitido: `completed` ou `absent`. Chamadas invalidas retornam 400, e conflitos de estado retornam 409. Objetos JSON de entrada são limitados a **2.048 bytes**, com rejeição explícita de qualquer conteúdo excedente (incluindo espaços após o objeto); requisições recusadas não modificam a fila.
 
 ## Validacao
 
