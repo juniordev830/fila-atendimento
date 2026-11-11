@@ -95,3 +95,32 @@ func TestOversizedJSONCannotMutateQueue(t *testing.T) {
 		`{"id":1,"status":"completed"} {"id":1,"status":"absent"}`,
 		http.StatusBadRequest)
 }
+
+func TestJSONBodyLimitAtExactBoundary(t *testing.T) {
+    const maxBytes = 2048
+    payload := `{"desk":"B"}`
+    exactlyAllowed := payload + strings.Repeat(" ", maxBytes-len(payload))
+    if len(exactlyAllowed) != maxBytes {
+        t.Fatal("invalid boundary fixture")
+    }
+
+    allowed := NewQueue()
+    allowed.Issue()
+    request(t, newHandler(allowed), "POST", "/call", exactlyAllowed, http.StatusOK)
+    called := allowed.Snapshot()
+    if len(called) != 1 || called[0].Status != "called" || called[0].Desk != "B" {
+        t.Fatalf("exactly 2048 bytes should be accepted: %+v", called)
+    }
+
+    rejected := NewQueue()
+    rejected.Issue()
+    justTooLarge := exactlyAllowed + " "
+    if len(justTooLarge) != maxBytes+1 {
+        t.Fatal("invalid overflow fixture")
+    }
+    request(t, newHandler(rejected), "POST", "/call", justTooLarge, http.StatusBadRequest)
+    after := rejected.Snapshot()
+    if len(after) != 1 || after[0].Status != "waiting" || after[0].Desk != "" {
+        t.Fatalf("oversized request must not mutate queue: %+v", after)
+    }
+}
