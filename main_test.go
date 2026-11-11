@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sync"
+	"strings"
 	"testing"
 )
 
@@ -73,4 +74,24 @@ func TestHTTPAPI(t *testing.T) {
 	request(t, h, "POST", "/call", `{"desk":"A","admin":true}`, http.StatusBadRequest)
 	request(t, h, "GET", "/health", "", http.StatusOK)
 	request(t, h, "PUT", "/tickets", "", http.StatusMethodNotAllowed)
+}
+
+func TestOversizedJSONCannotMutateQueue(t *testing.T) {
+	q := NewQueue()
+	issued := q.Issue()
+	h := newHandler(q)
+	// The legacy capped decoder could accept a small JSON object plus
+	// extra trailing spaces because the reader returned a synthetic EOF.
+	large := `{"desk":"A"}` + strings.Repeat(" ", 2100)
+	request(t, h, "POST", "/call", large, http.StatusBadRequest)
+	items := q.Snapshot()
+	if len(items) != 1 || items[0].ID != issued.ID || items[0].Status != "waiting" {
+		t.Fatalf("oversized request modified queue: %+v", items)
+	}
+
+	// An in-bound request still works and a second object is rejected.
+	request(t, h, "POST", "/call", `{"desk":"A"}`, http.StatusOK)
+	request(t, h, "POST", "/resolve",
+		`{"id":1,"status":"completed"} {"id":1,"status":"absent"}`,
+		http.StatusBadRequest)
 }
