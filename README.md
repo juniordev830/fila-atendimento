@@ -172,3 +172,7 @@ protege a rota, exceto em modo local sem token.
 implementa idempotencia entre requisicoes, historico de eventos, persistencia
 transacional nem coordenacao entre instancias. O modo de simulacao nao reserva
 recursos: outra requisicao pode mudar a fila antes de um commit posterior.
+
+## Documentação técnica
+
+Confira o [roteiro de validação e próximos incrementos](docs/GUIA_DE_VALIDACAO.md) para revisar a implementação e os critérios de qualidade antes de mudanças futuras.
