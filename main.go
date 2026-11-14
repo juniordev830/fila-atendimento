@@ -167,8 +167,18 @@ func newHandler(q *Queue) http.Handler {
 func main() {
 	addr := os.Getenv("ADDR")
 	if addr == "" { addr = "127.0.0.1:8080" }
-	fmt.Printf("Fila de Atendimento em http://%s\n", addr)
 	token := os.Getenv("API_TOKEN")
 	if err := validateBindAddress(addr, token); err != nil { log.Fatal(err) }
-	log.Fatal(http.ListenAndServe(addr, secureHandler(NewQueue(), token)))
+
+	queue := NewQueue()
+	handler := secureHandler(queue, token)
+	if path := os.Getenv("QUEUE_FILE"); path != "" {
+		var err error
+		queue, err = openDurableQueue(path)
+		if err != nil { log.Fatal(err) }
+		handler = durableHandler(queue, token, path)
+		log.Print("persistencia ativada: operacoes confirmadas somente apos salvar snapshot")
+	}
+	fmt.Printf("Fila de Atendimento em http://%s\n", addr)
+	log.Fatal(http.ListenAndServe(addr, handler))
 }
