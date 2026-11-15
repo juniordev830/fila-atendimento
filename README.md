@@ -39,7 +39,7 @@ O workflow CI executa os dois comandos em PRs. A verificacao de concorrencia usa
 
 ## Limites
 
-- **Armazenamento somente em memoria**: reiniciar perde as senhas; persistencia SQLite e recuperacao apos falhas estao no backlog.
+- **Modo padrao em memoria**: reiniciar perde as senhas. Para persistencia local transacional por requisicao, configure `QUEUE_FILE` conforme abaixo. Nao ha suporte a multiplos processos no mesmo arquivo.
 - **Autenticacao opcional**: sem API_TOKEN, o servidor so pode escutar em loopback; com token, todas as rotas exceto GET /health exigem Bearer. Para acesso externo, usar TLS e protecoes adicionais.
 - Nao ha garantia de exclusao mutua entre *multiplos processos*. Usar um processo unico nesta primeira versao.
 - Ainda nao possui HTMX, frontend ou painel de atendimento.
@@ -109,7 +109,25 @@ Com token configurado, todas as rotas exceto `GET /health` exigem o cabecalho `A
 
 A fila disponibiliza `q.SaveSnapshotFile("queue.json")` e `LoadSnapshotFile("queue.json")` para backup e recuperacao explicitos. O arquivo e criado com permissoes `0600`, escrito em arquivo temporario, sincronizado e substituido por renomeacao atomica. O carregamento limita a leitura a 5 MiB e valida os invariantes antes de devolver uma fila utilizavel.
 
-**Importante:** checkpoints sao manuais e nao sao executados automaticamente apos cada requisicao. Falhas do processo entre checkpoints podem causar perda de alteracoes recentes. O formato nao oferece coordenacao entre multiplos processos nem historico transacional; para producao, integrar persistencia transacional e autenticacao robusta.
+**Importante:** sem `QUEUE_FILE`, checkpoints continuam manuais. Com `QUEUE_FILE`, o servidor usa a mesma rotina de arquivo, mas grava cada POST valido antes de confirmar a operacao e publicar o novo estado. O formato nao oferece coordenacao entre multiplos processos nem auditoria historica; autenticacao individual e hospedagem segura permanecem necessarias.
+
+## Persistencia automatica e recuperacao
+
+Configure `QUEUE_FILE` para habilitar gravacao atomica **antes da resposta HTTP de sucesso** em cada operacao de escrita. A aplicacao restaura senhas em espera e em atendimento, seus guiches e o proximo numero de senha ao reiniciar:
+
+```bash
+# O diretorio data/ deve existir e ser privado.
+mkdir -p data
+QUEUE_FILE=./data/fila.json go run .
+```
+
+- Na primeira inicializacao, o arquivo e criado com permissao `0600` e fila vazia; em reinicios, a mesma fila e recuperada.
+- Um arquivo ausente e inicializado; arquivo corrompido ou inacessivel **impede a inicializacao** (a contagem nunca recomeça silenciosamente).
+- POSTs sao processados de maneira sequencial e sobre uma copia isolada. Se a gravacao falhar, a API responde **503** e nao modifica a fila em memoria; pedidos invalidos nao sao persistidos.
+- O modo `dry_run` de lotes nao altera senhas nem consome IDs.
+- Para backup, copie `data/fila.json` para local privado; para restaurar, pare o servidor e substitua o arquivo pelo backup validado antes de iniciar novamente. O JSON salvo e um snapshot completo, sem nomes ou documentos de clientes.
+- Use **apenas uma instancia do servidor por arquivo**. Nao ha travamento entre processos, replicacao, recuperacao de disco corrompido ou armazenamento em banco de dados. Arquivos precisam ficar em volume persistente, com permissao restrita e backups fora do host.
+- Para acesso pela rede, configure `API_TOKEN`, HTTPS via proxy reverso e controles de operadores; um token compartilhado nao constitui autorizacao individual.
 
 ## Relatorios operacionais (HTTP)
 
@@ -133,7 +151,7 @@ curl 'http://127.0.0.1:8080/reports/export.csv?from_id=1&to_id=100' -o fila.csv
 - O relatorio por guiche conta apenas senhas `called`, `completed` e `absent`, agrupadas pelo ultimo guiche registrado. Nao representa uma trilha historica de transferencias.
 - O CSV usa `encoding/csv` e protege identificadores de guiche iniciados por caracteres de formula para evitar execucao acidental em planilhas.
 - As leituras fazem copia consistente sob mutex e executam agregacoes fora da regiao critica; nao bloqueiam a fila durante a serializacao CSV.
-- Os resultados sao efemeros: o reinicio do processo perde o estado que nao tiver sido salvo em checkpoint. Nao ha indicadores de tempo medio ou SLA sem timestamps confiaveis.
+- Sem `QUEUE_FILE`, os resultados sao efemeros; com `QUEUE_FILE`, refletem o estado confirmado em disco. Nao ha indicadores de tempo medio ou SLA sem timestamps confiaveis.
 
 
 ## Transacoes atomicas de senhas
