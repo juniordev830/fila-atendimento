@@ -163,3 +163,30 @@ func TestDurableQueuePreventsDoubleCallAfterRestart(t *testing.T) {
 		t.Fatalf("invalid recovered call state: %+v", recovered.Snapshot())
 	}
 }
+
+func TestDurableQueueRejectsStateThatCannotBeRestored(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "queue.json")
+	queue := NewQueue()
+	for i := 0; i < maxSnapshotTickets; i++ {
+		queue.Issue()
+	}
+	if err := queue.SaveSnapshotFile(path); err != nil {
+		t.Fatal(err)
+	}
+
+	handler := durableHandler(queue, "", path)
+	reply := persistentRequest(handler, http.MethodPost, "/tickets", "", "")
+	if reply.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected HTTP 503, got %d", reply.Code)
+	}
+	if got := len(queue.Snapshot()); got != maxSnapshotTickets {
+		t.Fatalf("failed write changed live queue size to %d", got)
+	}
+	recovered, err := openDurableQueue(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := len(recovered.Snapshot()); got != maxSnapshotTickets {
+		t.Fatalf("recovered queue size is %d", got)
+	}
+}

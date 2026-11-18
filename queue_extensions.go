@@ -165,10 +165,15 @@ func (q *Queue) Page(status string, offset, limit int) (map[string]any, error) {
     }, nil
 }
 
+const maxSnapshotTickets = 100_000
+
 // ExportSnapshot emits a portable, versioned snapshot with the next ID.
 func (q *Queue) ExportSnapshot() ([]byte, error) {
     q.mu.Lock()
     defer q.mu.Unlock()
+    if len(q.items) > maxSnapshotTickets {
+        return nil, errors.New("snapshot excede 100000 senhas")
+    }
     return json.Marshal(map[string]any{
         "version": 1, "next_id": q.nextID, "tickets": q.items,
     })
@@ -193,7 +198,7 @@ func RestoreQueue(data []byte) (*Queue, error) {
     if err := decoder.Decode(&extra); err != io.EOF {
         return nil, errors.New("snapshot contem dados extras")
     }
-    if envelope.Version != 1 || envelope.NextID < 1 || len(envelope.Tickets) > 100000 {
+    if envelope.Version != 1 || envelope.NextID < 1 || len(envelope.Tickets) > maxSnapshotTickets {
         return nil, errors.New("metadados de snapshot invalidos")
     }
     activeDesks := make(map[string]bool)
