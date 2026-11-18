@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -37,6 +38,7 @@ func (q *Queue) Issue() Ticket {
 
 var (
 	ErrNoWaiting  = errors.New("nenhuma senha aguardando")
+	ErrInvalidDesk = errors.New("guiche invalido: use ate 64 caracteres sem controles")
 	ErrDeskBusy   = errors.New("guiche ja possui atendimento ativo")
 	ErrNotCalled  = errors.New("senha nao esta em atendimento")
 	ErrBadOutcome = errors.New("resultado deve ser completed ou absent")
@@ -44,8 +46,8 @@ var (
 
 func (q *Queue) Call(desk string) (Ticket, error) {
 	desk = strings.TrimSpace(desk)
-	if desk == "" {
-		return Ticket{}, errors.New("guiche obrigatorio")
+	if !validDeskName(desk) {
+		return Ticket{}, ErrInvalidDesk
 	}
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -92,7 +94,16 @@ func (q *Queue) Snapshot() []Ticket {
 
 func readObject(r *http.Request, out any) error {
 	defer r.Body.Close()
-	dec := json.NewDecoder(io.LimitReader(r.Body, 2049))
+	// Read one byte beyond the limit to distinguish oversized JSON from EOF.
+	// A capped decoder alone may mistake truncated trailing content for EOF.
+	body, err := io.ReadAll(io.LimitReader(r.Body, 2049))
+	if err != nil {
+		return err
+	}
+	if len(body) > 2048 {
+		return errors.New("JSON excede 2048 bytes")
+	}
+	dec := json.NewDecoder(bytes.NewReader(body))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(out); err != nil {
 		return err
@@ -139,7 +150,7 @@ func newHandler(q *Queue) http.Handler {
 		ticket, err := q.Call(input.Desk)
 		if err != nil {
 			code := http.StatusConflict
-			if strings.TrimSpace(input.Desk) == "" { code = http.StatusBadRequest }
+			if errors.Is(err, ErrInvalidDesk) { code = http.StatusBadRequest }
 			respond(w, code, map[string]string{"erro": err.Error()}); return
 		}
 		respond(w, http.StatusOK, ticket)
