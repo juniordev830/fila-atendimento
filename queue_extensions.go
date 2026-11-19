@@ -252,7 +252,36 @@ func parsePageQuery(r *http.Request) (string, int, int, error) {
     return status, offset, limit, nil
 }
 
+// Lookup returns a snapshot of one ticket. Queue IDs are kept in ascending order.
+func (q *Queue) Lookup(id int) (Ticket, bool) {
+    q.mu.Lock()
+    defer q.mu.Unlock()
+    index := sort.Search(len(q.items), func(i int) bool { return q.items[i].ID >= id })
+    if index == len(q.items) || q.items[index].ID != id {
+        return Ticket{}, false
+    }
+    return q.items[index], true
+}
+
 func withAdvancedRoutes(q *Queue, mux *http.ServeMux) http.Handler {
+    mux.HandleFunc("/tickets/{id}", func(w http.ResponseWriter, r *http.Request) {
+        if r.Method != http.MethodGet {
+            badMethod(w)
+            return
+        }
+        rawID := r.PathValue("id")
+        id, err := strconv.Atoi(rawID)
+        if err != nil || id < 1 || strconv.Itoa(id) != rawID {
+            respond(w, http.StatusBadRequest, map[string]string{"erro": "id invalido"})
+            return
+        }
+        ticket, ok := q.Lookup(id)
+        if !ok {
+            respond(w, http.StatusNotFound, map[string]string{"erro": ErrTicketMissing.Error()})
+            return
+        }
+        respond(w, http.StatusOK, ticket)
+    })
     mux.HandleFunc("/stats", func(w http.ResponseWriter, r *http.Request) {
         if r.Method != http.MethodGet { badMethod(w); return }
         respond(w, http.StatusOK, q.Stats())

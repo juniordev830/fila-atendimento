@@ -60,6 +60,7 @@ curl 'http://127.0.0.1:8080/tickets/search?status=waiting&offset=0&limit=20'
 
 # Consultar posicao de uma senha ainda aguardando
 curl 'http://127.0.0.1:8080/tickets/position?id=2'
+curl 'http://127.0.0.1:8080/tickets/2'
 
 # Cancelar uma senha em espera
 curl -X POST http://127.0.0.1:8080/cancel \
