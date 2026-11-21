@@ -270,3 +270,16 @@ func TestAdvancedHTTPRoutesAndValidation(t *testing.T) {
         t.Fatalf("export is not restorable: %v", err)
     }
 }
+
+func TestTicketPageRejectsNoncanonicalNumbers(t *testing.T) {
+    for _, query := range []string{"offset=+1", "offset=01", "offset=", "limit=02", "limit=1e1", "limit="} {
+        req := httptest.NewRequest(http.MethodGet, "/tickets/search?"+query, nil)
+        if _, _, _, err := parsePageQuery(req); !errors.Is(err, ErrInvalidPage) {
+            t.Fatalf("%s should be rejected: %v", query, err)
+        }
+    }
+    req := httptest.NewRequest(http.MethodGet, "/tickets/search?offset=0&limit=100", nil)
+    if _, off, lim, err := parsePageQuery(req); err != nil || off != 0 || lim != 100 {
+        t.Fatalf("canonical boundary rejected: %d %d %v", off, lim, err)
+    }
+}
