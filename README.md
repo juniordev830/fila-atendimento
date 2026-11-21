@@ -197,3 +197,5 @@ recursos: outra requisicao pode mudar a fila antes de um commit posterior.
 ## Documentação técnica
 
 Confira o [roteiro de validação e próximos incrementos](docs/GUIA_DE_VALIDACAO.md) para revisar a implementação e os critérios de qualidade antes de mudanças futuras.
+
+As APIs de consulta e relatórios exigem inteiros decimais canônicos para `offset`, `limit`, `from_id` e `to_id`; notação científica, sinais `+`, zeros à esquerda e parâmetros vazios são rejeitados com erro de cliente. Os limites de paginação continuam inalterados.
