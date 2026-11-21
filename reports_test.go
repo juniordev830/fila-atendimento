@@ -146,3 +146,17 @@ func TestReportLimitRejectsOversizedExports(t *testing.T){
  report,err:=q.Report(1,10000)
  if err!=nil||report.Total!=10000{t.Fatalf("bounded: %d %v",report.Total,err)}
 }
+
+func TestReportQueryRejectsNoncanonicalNumbers(t *testing.T) {
+    for _, query := range []string{"from_id=+1", "from_id=01", "to_id=0010", "to_id=1e1", "offset=00", "limit=+2"} {
+        req := httptest.NewRequest(http.MethodGet, "/reports/desks?"+query, nil)
+        if _, err := reportQuery(req, "offset", "limit"); !errors.Is(err, ErrReportRange) {
+            t.Fatalf("%s must be rejected: %v", query, err)
+        }
+    }
+    req := httptest.NewRequest(http.MethodGet, "/reports/desks?from_id=1&to_id=10&offset=0&limit=20", nil)
+    values, err := reportQuery(req, "offset", "limit")
+    if err != nil || values["from_id"] != 1 || values["limit"] != 20 {
+        t.Fatalf("canonical range rejected: %#v %v", values, err)
+    }
+}

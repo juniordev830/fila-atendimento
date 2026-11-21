@@ -133,7 +133,7 @@ func reportQuery(r *http.Request,allowed ...string)(map[string]int,error){
  for key,entries:=range r.URL.Query(){
   if !permitted[key]||len(entries)!=1||entries[0]==""{return nil,ErrReportRange}
   value,err:=strconv.Atoi(entries[0])
-  if err!=nil||value<0{return nil,ErrReportRange}
+  if err!=nil||value<0||strconv.Itoa(value)!=entries[0]{return nil,ErrReportRange}
   values[key]=value
  }
  if err:=validateReportRange(values["from_id"],values["to_id"]);err!=nil{return nil,err}

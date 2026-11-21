@@ -238,15 +238,17 @@ func parsePageQuery(r *http.Request) (string, int, int, error) {
     status, offset, limit := query.Get("status"), 0, 20
     if raw := query.Get("offset"); raw != "" {
         parsed, err := strconv.Atoi(raw)
-        if err != nil { return "", 0, 0, ErrInvalidPage }
+        if err != nil || raw != strconv.Itoa(parsed) { return "", 0, 0, ErrInvalidPage }
         offset = parsed
     }
     if raw := query.Get("limit"); raw != "" {
         parsed, err := strconv.Atoi(raw)
-        if err != nil { return "", 0, 0, ErrInvalidPage }
+        if err != nil || raw != strconv.Itoa(parsed) { return "", 0, 0, ErrInvalidPage }
         limit = parsed
     }
-    if offset < 0 || limit < 1 || limit > 100 {
+    if offset < 0 || limit < 1 || limit > 100 ||
+        (query.Has("offset") && query.Get("offset") == "") ||
+        (query.Has("limit") && query.Get("limit") == "") {
         return "", 0, 0, ErrInvalidPage
     }
     return status, offset, limit, nil
