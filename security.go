@@ -5,6 +5,7 @@ import (
     "errors"
     "net"
     "net/http"
+    "strings"
 )
 
 // validateBindAddress prevents accidental public exposure of unauthenticated
@@ -14,7 +15,7 @@ func validateBindAddress(addr, token string) error {
     if err != nil {
         return err
     }
-    if token != "" || host == "localhost" {
+    if token != "" || strings.EqualFold(host, "localhost") {
         return nil
     }
     ip := net.ParseIP(host)
