@@ -5,6 +5,7 @@ import (
     "errors"
     "net"
     "net/http"
+    "strings"
 )
 
 // validateBindAddress prevents accidental public exposure of unauthenticated
@@ -14,14 +15,28 @@ func validateBindAddress(addr, token string) error {
     if err != nil {
         return err
     }
-    if token != "" || host == "localhost" {
-        return nil
-    }
-    ip := net.ParseIP(host)
-    if ip != nil && ip.IsLoopback() {
+    if token != "" || isLoopbackHost(host) {
         return nil
     }
     return errors.New("API_TOKEN obrigatorio para escutar fora de loopback")
+}
+
+func isLoopbackHost(host string) bool {
+    return strings.EqualFold(host, "localhost") || net.ParseIP(host).IsLoopback()
+}
+
+func validateTLSConfig(addr, certFile, keyFile string) error {
+    host, _, err := net.SplitHostPort(addr)
+    if err != nil {
+        return err
+    }
+    if (certFile == "") != (keyFile == "") {
+        return errors.New("configure TLS_CERT_FILE e TLS_KEY_FILE juntos")
+    }
+    if certFile == "" && !isLoopbackHost(host) {
+        return errors.New("TLS obrigatorio para escutar fora de loopback")
+    }
+    return nil
 }
 
 // secureHandler leaves only the health probe public when API_TOKEN is set.

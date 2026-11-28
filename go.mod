@@ -1,3 +1,3 @@
 module github.com/juniordev830/fila-atendimento
 
-go 1.23
+go 1.26.11

@@ -1,6 +1,6 @@
 # Fila de Atendimento
 
-MVP de senhas para pequenos balcoes de atendimento, implementado em **Go 1.23**, apenas com a biblioteca padrao.
+MVP de senhas para pequenos balcoes de atendimento, implementado em **Go 1.26.11**, apenas com a biblioteca padrao.
 
 ## Funcionalidades
 
@@ -42,7 +42,7 @@ O workflow CI executa os dois comandos em PRs. A verificacao de concorrencia usa
 ## Limites
 
 - **Modo padrao em memoria**: reiniciar perde as senhas. Para persistencia local transacional por requisicao, configure `QUEUE_FILE` conforme abaixo. Nao ha suporte a multiplos processos no mesmo arquivo.
-- **Autenticacao opcional**: sem API_TOKEN, o servidor so pode escutar em loopback; com token, todas as rotas exceto GET /health exigem Bearer. Para acesso externo, usar TLS e protecoes adicionais.
+- **Autenticacao opcional**: sem API_TOKEN, o servidor so pode escutar em loopback; com token, todas as rotas exceto GET /health exigem Bearer. Para bind fora de loopback, configure o par TLS_CERT_FILE e TLS_KEY_FILE.
 - Nao ha garantia de exclusao mutua entre *multiplos processos*. Usar um processo unico nesta primeira versao.
 - Ainda nao possui HTMX, frontend ou painel de atendimento.
 
@@ -105,7 +105,7 @@ curl -H 'Authorization: Bearer troque-por-um-segredo-longo' http://127.0.0.1:808
 
 Com token configurado, todas as rotas exceto `GET /health` exigem o cabecalho `Authorization: Bearer <token>`. Credenciais incorretas recebem HTTP 401 e `WWW-Authenticate: Bearer`. O token nao aparece em logs nem respostas. A comparacao utiliza `crypto/subtle`.
 
-**Aviso:** bearer token em HTTP sem TLS pode ser interceptado. Para exposicao fora do host, utilize HTTPS em um proxy reverso confiavel, controle de acesso e protecao do segredo. O token nao substitui TLS, limites de requisicoes ou auditoria de operacoes.
+Fora de loopback, configure `API_TOKEN`, `TLS_CERT_FILE` e `TLS_KEY_FILE`. Quando um proxy reverso confiavel na mesma maquina termina HTTPS, mantenha `ADDR=127.0.0.1:8080` e configure `API_TOKEN` também.
 
 
 ## Checkpoints locais (biblioteca Go)

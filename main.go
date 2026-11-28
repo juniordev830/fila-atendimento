@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 )
 
 type Ticket struct {
@@ -175,11 +176,22 @@ func newHandler(q *Queue) http.Handler {
 	return withAdvancedRoutes(q, mux)
 }
 
+func newHTTPServer(addr string, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr: addr, Handler: handler,
+		ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second,
+		WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second,
+		MaxHeaderBytes: 64 << 10,
+	}
+}
+
 func main() {
 	addr := os.Getenv("ADDR")
 	if addr == "" { addr = "127.0.0.1:8080" }
 	token := os.Getenv("API_TOKEN")
+	certFile, keyFile := os.Getenv("TLS_CERT_FILE"), os.Getenv("TLS_KEY_FILE")
 	if err := validateBindAddress(addr, token); err != nil { log.Fatal(err) }
+	if err := validateTLSConfig(addr, certFile, keyFile); err != nil { log.Fatal(err) }
 
 	queue := NewQueue()
 	handler := secureHandler(queue, token)
@@ -190,6 +202,11 @@ func main() {
 		handler = durableHandler(queue, token, path)
 		log.Print("persistencia ativada: operacoes confirmadas somente apos salvar snapshot")
 	}
+	server := newHTTPServer(addr, handler)
+	if certFile != "" {
+		fmt.Printf("Fila de Atendimento em https://%s\n", addr)
+		log.Fatal(server.ListenAndServeTLS(certFile, keyFile))
+	}
 	fmt.Printf("Fila de Atendimento em http://%s\n", addr)
-	log.Fatal(http.ListenAndServe(addr, handler))
+	log.Fatal(server.ListenAndServe())
 }
