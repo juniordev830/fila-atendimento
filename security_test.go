@@ -109,3 +109,20 @@ func TestLocalDevelopmentRemainsBackwardsCompatible(t *testing.T) {
         t.Fatalf("local-only mode changed: %d %s", w.Code, w.Body.String())
     }
 }
+
+func TestTLSRequiredForRemoteAddresses(t *testing.T) {
+    for _, addr := range []string{"0.0.0.0:8080", ":8080", "[::]:8080"} {
+        if validateTLSConfig(addr, "", "") == nil {
+            t.Errorf("remote address %s accepted without TLS", addr)
+        }
+        if err := validateTLSConfig(addr, "cert.pem", "key.pem"); err != nil {
+            t.Errorf("remote address %s with TLS: %v", addr, err)
+        }
+    }
+    if err := validateTLSConfig("LOCALHOST:8080", "", "key.pem"); err == nil {
+        t.Fatal("partial TLS configuration accepted")
+    }
+    if err := validateTLSConfig("LOCALHOST:8080", "", ""); err != nil {
+        t.Fatalf("local development configuration rejected: %v", err)
+    }
+}
