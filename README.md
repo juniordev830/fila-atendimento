@@ -96,11 +96,18 @@ Os testes cobrem transicoes de estado, concorrencia com detector de race, snapsh
 
 ## Autenticacao opcional e exposicao de rede
 
-Por padrao, a API continua sem autenticacao **somente em loopback**. Ao configurar `ADDR` com um endereco publico ou de rede, o processo exige `API_TOKEN` antes de iniciar:
+Por padrao, a API continua sem autenticacao somente em loopback. Para desenvolvimento local com autenticacao, configure `API_TOKEN` no seu ambiente e mantenha o endereco padrao.
 
 ```bash
-API_TOKEN='troque-por-um-segredo-longo' ADDR=0.0.0.0:8080 go run .
-curl -H 'Authorization: Bearer troque-por-um-segredo-longo' http://127.0.0.1:8080/stats
+go run .
+# Em outro terminal com API_TOKEN configurado:
+curl -H "Authorization: Bearer ${API_TOKEN}" http://127.0.0.1:8080/stats
+```
+
+Para atender outros dispositivos, configure `API_TOKEN` e use um certificado valido para o nome de host usado pelos clientes.
+
+```bash
+ADDR=0.0.0.0:8080 TLS_CERT_FILE=/caminho/cert.pem TLS_KEY_FILE=/caminho/chave.pem go run .
 ```
 
 Com token configurado, todas as rotas exceto `GET /health` exigem o cabecalho `Authorization: Bearer <token>`. Credenciais incorretas recebem HTTP 401 e `WWW-Authenticate: Bearer`. O token nao aparece em logs nem respostas. A comparacao utiliza `crypto/subtle`.
